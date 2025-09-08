@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KWIC (Key Word In Context) Web UI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .subtitle {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .input-section {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #555;
+        }
+        
+        textarea, input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e1e1;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+        
+        textarea:focus, input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .results-section {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: none;
+        }
+        
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .results-count {
+            color: #667eea;
+            font-weight: 600;
+        }
+        
+        .kwic-result {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .kwic-line {
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        
+        .left-context {
+            color: #666;
+        }
+        
+        .keyword {
+            background: #667eea;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        
+        .right-context {
+            color: #666;
+        }
+        
+        .line-number {
+            font-size: 12px;
+            color: #999;
+            margin-top: 5px;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            color: #667eea;
+            font-style: italic;
+        }
+        
+        .error {
+            background: #fee;
+            color: #d32f2f;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            border-left: 4px solid #d32f2f;
+        }
+        
+        .sample-text {
+            font-size: 12px;
+            color: #888;
+            margin-top: 5px;
+            font-style: italic;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .input-section, .results-section {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>KWIC Web UI</h1>
+            <p class="subtitle">Key Word In Context 分析ツール</p>
+        </header>
+        
+        <div class="input-section">
+            <form id="kwicForm">
+                <div class="form-group">
+                    <label for="text">分析するテキスト:</label>
+                    <textarea id="text" name="text" placeholder="ここに分析したいテキストを入力してください..." required></textarea>
+                    <div class="sample-text">例: "This is a sample text. The text contains many words. Text analysis is useful."</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="keyword">検索キーワード:</label>
+                    <input type="text" id="keyword" name="keyword" placeholder="例: text" required>
+                </div>
+                
+                <button type="submit" class="btn" id="analyzeBtn">分析実行</button>
+            </form>
+            
+            <div class="loading" id="loading">
+                分析中... お待ちください
+            </div>
+        </div>
+        
+        <div class="results-section" id="resultsSection">
+            <div class="results-header">
+                <h2>分析結果</h2>
+                <span class="results-count" id="resultsCount"></span>
+            </div>
+            <div id="results"></div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('kwicForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const text = document.getElementById('text').value;
+            const keyword = document.getElementById('keyword').value;
+            const loadingEl = document.getElementById('loading');
+            const resultsSection = document.getElementById('resultsSection');
+            const resultsEl = document.getElementById('results');
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            const resultsCount = document.getElementById('resultsCount');
+            
+            // UIの状態をリセット
+            loadingEl.style.display = 'block';
+            resultsSection.style.display = 'none';
+            analyzeBtn.disabled = true;
+            resultsEl.innerHTML = '';
+            
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ text, keyword })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // 結果を表示
+                    resultsCount.textContent = `${data.total_matches} 件の一致`;
+                    
+                    if (data.results.length > 0) {
+                        data.results.forEach((result, index) => {
+                            const resultDiv = document.createElement('div');
+                            resultDiv.className = 'kwic-result';
+                            resultDiv.innerHTML = `
+                                <div class="kwic-line">
+                                    <span class="left-context">${escapeHtml(result.left_context)}</span>
+                                    <span class="keyword">${escapeHtml(result.keyword)}</span>
+                                    <span class="right-context">${escapeHtml(result.right_context)}</span>
+                                </div>
+                                ${result.line_number ? `<div class="line-number">行 ${result.line_number}</div>` : ''}
+                            `;
+                            resultsEl.appendChild(resultDiv);
+                        });
+                    } else {
+                        resultsEl.innerHTML = '<p>キーワードが見つかりませんでした。</p>';
+                    }
+                    
+                    resultsSection.style.display = 'block';
+                } else {
+                    throw new Error(data.error || '分析に失敗しました');
+                }
+            } catch (error) {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error';
+                errorDiv.textContent = `エラー: ${error.message}`;
+                resultsEl.appendChild(errorDiv);
+                resultsSection.style.display = 'block';
+            } finally {
+                loadingEl.style.display = 'none';
+                analyzeBtn.disabled = false;
+            }
+        });
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
