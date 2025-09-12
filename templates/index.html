@@ -242,9 +242,11 @@
         <div class="input-section">
             <form id="kwicForm">
                 <div class="form-group">
-                    <label for="text">分析するテキスト:</label>
-                    <textarea id="text" name="text" placeholder="ここに分析したいテキストを入力してください..." required></textarea>
-                    <div class="sample-text">例: "This is a sample text. The text contains many words. Text analysis is useful."</div>
+                    <label for="sampleText">分析するサンプルテキスト:</label>
+                    <select id="sampleText" name="sampleText" required>
+                        <option value="" disabled selected>サンプルを選択してください</option>
+                    </select>
+                    <div class="sample-text" id="samplePreview"></div>
                 </div>
                 
                 <div class="form-row">
@@ -277,86 +279,113 @@
         </div>
     </div>
 
-    <script>
-        document.getElementById('kwicForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const text = document.getElementById('text').value;
-            const keyword = document.getElementById('keyword').value;
-            const contextSize = parseInt(document.getElementById('contextSize').value) || 50;
-            const loadingEl = document.getElementById('loading');
-            const resultsSection = document.getElementById('resultsSection');
-            const resultsEl = document.getElementById('results');
-            const analyzeBtn = document.getElementById('analyzeBtn');
-            const resultsCount = document.getElementById('resultsCount');
-            
-            // UIの状態をリセット
-            loadingEl.style.display = 'block';
-            resultsSection.style.display = 'none';
-            analyzeBtn.disabled = true;
-            resultsEl.innerHTML = '';
-            
-            try {
-                const response = await fetch('/analyze', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ 
-                        text: text, 
-                        keyword: keyword,
-                        context_size: contextSize
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    // 結果を表示
-                    resultsCount.textContent = `"${data.keyword_searched}" に対して ${data.total_matches} 件の一致`;
-                    
-                    if (data.results.length > 0) {
-                        data.results.forEach((result, index) => {
-                            const resultDiv = document.createElement('div');
-                            resultDiv.className = 'kwic-result';
-                            resultDiv.innerHTML = `
-                                <div class="kwic-line">
-                                    <span class="left-context">${escapeHtml(result.left_context)}</span>
-                                    <span class="keyword">${escapeHtml(result.keyword)}</span>
-                                    <span class="right-context">${escapeHtml(result.right_context)}</span>
-                                </div>
-                                <div class="line-info">
-                                    ${result.line_number ? `<span>行 ${result.line_number}</span>` : '<span></span>'}
-                                    <span>マッチ ${index + 1}</span>
-                                </div>
-                            `;
-                            resultsEl.appendChild(resultDiv);
-                        });
-                    } else {
-                        resultsEl.innerHTML = '<p>キーワードが見つかりませんでした。</p>';
-                    }
-                    
-                    resultsSection.style.display = 'block';
-                } else {
-                    throw new Error(data.error || '分析に失敗しました');
-                }
-            } catch (error) {
-                const errorDiv = document.createElement('div');
-                errorDiv.className = 'error';
-                errorDiv.textContent = `エラー: ${error.message}`;
-                resultsEl.appendChild(errorDiv);
-                resultsSection.style.display = 'block';
-            } finally {
-                loadingEl.style.display = 'none';
-                analyzeBtn.disabled = false;
-            }
-        });
-        
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+<script>
+    // サンプル一覧をAPIから取得してセレクトボックスに反映
+    async function loadSamples() {
+        const select = document.getElementById('sampleText');
+        const preview = document.getElementById('samplePreview');
+        try {
+            const res = await fetch('/samples');
+            const data = await res.json();
+            select.innerHTML = '<option value="" disabled selected>サンプルを選択してください</option>';
+            data.samples.forEach(sample => {
+                const opt = document.createElement('option');
+                opt.value = sample.filename;
+                opt.textContent = sample.label;
+                opt.dataset.content = sample.content;
+                select.appendChild(opt);
+            });
+        } catch (e) {
+            preview.textContent = 'サンプルの取得に失敗しました';
         }
-    </script>
+    }
+
+    // サンプル選択時にプレビュー表示
+    document.getElementById('sampleText').addEventListener('change', async function(e) {
+        const select = e.target;
+        const selected = select.options[select.selectedIndex];
+        const preview = document.getElementById('samplePreview');
+        preview.textContent = selected.dataset.content || '';
+    });
+
+    // 分析実行
+    document.getElementById('kwicForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const select = document.getElementById('sampleText');
+        const selected = select.options[select.selectedIndex];
+        const text = selected.dataset.content || '';
+        const keyword = document.getElementById('keyword').value;
+        const contextSize = parseInt(document.getElementById('contextSize').value) || 50;
+        const loadingEl = document.getElementById('loading');
+        const resultsSection = document.getElementById('resultsSection');
+        const resultsEl = document.getElementById('results');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const resultsCount = document.getElementById('resultsCount');
+        // UIの状態をリセット
+        loadingEl.style.display = 'block';
+        resultsSection.style.display = 'none';
+        analyzeBtn.disabled = true;
+        resultsEl.innerHTML = '';
+        try {
+            const response = await fetch('/analyze', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    text: text, 
+                    keyword: keyword,
+                    context_size: contextSize
+                })
+            });
+            const data = await response.json();
+            if (data.success) {
+                // 結果を表示
+                resultsCount.textContent = `"${data.keyword_searched}" に対して ${data.total_matches} 件の一致`;
+                if (data.results.length > 0) {
+                    data.results.forEach((result, index) => {
+                        const resultDiv = document.createElement('div');
+                        resultDiv.className = 'kwic-result';
+                        resultDiv.innerHTML = `
+                            <div class="kwic-line">
+                                <span class="left-context">${escapeHtml(result.left_context)}</span>
+                                <span class="keyword">${escapeHtml(result.keyword)}</span>
+                                <span class="right-context">${escapeHtml(result.right_context)}</span>
+                            </div>
+                            <div class="line-info">
+                                ${result.line_number ? `<span>行 ${result.line_number}</span>` : '<span></span>'}
+                                <span>マッチ ${index + 1}</span>
+                            </div>
+                        `;
+                        resultsEl.appendChild(resultDiv);
+                    });
+                } else {
+                    resultsEl.innerHTML = '<p>キーワードが見つかりませんでした。</p>';
+                }
+                resultsSection.style.display = 'block';
+            } else {
+                throw new Error(data.error || '分析に失敗しました');
+            }
+        } catch (error) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = `エラー: ${error.message}`;
+            resultsEl.appendChild(errorDiv);
+            resultsSection.style.display = 'block';
+        } finally {
+            loadingEl.style.display = 'none';
+            analyzeBtn.disabled = false;
+        }
+    });
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // 初回ロード時にサンプル一覧取得
+    window.addEventListener('DOMContentLoaded', loadSamples);
+</script>
 </body>
 </html>

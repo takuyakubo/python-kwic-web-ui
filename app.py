@@ -1,3 +1,4 @@
+import os
 from flask import Flask, render_template, request, jsonify
 import re
 
@@ -5,48 +6,34 @@ app = Flask(__name__)
 
 class SimpleKWIC:
     """シンプルなKWIC (Key Word In Context) 実装"""
-    
     @staticmethod
     def kwic(text, keyword, context_size=50):
         """
         テキスト内でキーワードを検索し、前後の文脈と共に返す
-        
         Args:
             text (str): 検索対象のテキスト
             keyword (str): 検索キーワード
             context_size (int): 前後の文脈の文字数
-            
         Returns:
             list: マッチした結果のリスト
         """
         results = []
-        
-        # テキストを行に分割
         lines = text.split('\n')
-        
         for line_num, line in enumerate(lines, 1):
-            # 大文字小文字を無視してキーワードを検索
             pattern = re.compile(re.escape(keyword), re.IGNORECASE)
             matches = pattern.finditer(line)
-            
             for match in matches:
                 start_pos = match.start()
                 end_pos = match.end()
-                
-                # 前後の文脈を取得
                 left_start = max(0, start_pos - context_size)
                 right_end = min(len(line), end_pos + context_size)
-                
                 left_context = line[left_start:start_pos]
                 matched_keyword = line[start_pos:end_pos]
                 right_context = line[end_pos:right_end]
-                
-                # 文脈の前後に省略記号を追加（必要に応じて）
                 if left_start > 0:
                     left_context = "..." + left_context
                 if right_end < len(line):
                     right_context = right_context + "..."
-                
                 results.append({
                     'left_context': left_context.strip(),
                     'keyword': matched_keyword,
@@ -54,17 +41,37 @@ class SimpleKWIC:
                     'line_number': line_num,
                     'full_line': line.strip()
                 })
-        
         return results
+
+@app.route('/samples', methods=['GET'])
+def get_samples():
+    """サンプルテキストファイル一覧と内容を返すAPI"""
+    samples_dir = os.path.join(os.path.dirname(__file__), 'samples')
+    sample_files = [f for f in os.listdir(samples_dir) if f.endswith('.txt')]
+    samples = []
+    for fname in sample_files:
+        fpath = os.path.join(samples_dir, fname)
+        with open(fpath, encoding='utf-8') as f:
+            content = f.read()
+        samples.append({
+            'filename': fname,
+            'label': fname.replace('.txt', ''),
+            'content': content
+        })
+    return jsonify({'samples': samples})
 
 @app.route('/')
 def index():
-    """メインページを表示"""
+    """
+    メインページを表示
+    """
     return render_template('index.html')
 
 @app.route('/analyze', methods=['POST'])
 def analyze_text():
-    """テキストのKWIC分析を実行"""
+    """
+    テキストのKWIC分析を実行
+    """
     try:
         data = request.get_json()
         text = data.get('text', '')
@@ -107,12 +114,16 @@ def analyze_text():
 
 @app.route('/health')
 def health_check():
-    """ヘルスチェック用エンドポイント"""
+    """
+    ヘルスチェック用エンドポイント
+    """
     return jsonify({'status': 'OK', 'message': 'KWIC Web UI is running'})
 
 @app.route('/api/info')
 def api_info():
-    """API情報を返す"""
+    """
+    API情報を返す
+    """
     return jsonify({
         'name': 'KWIC Web UI',
         'version': '1.0.0',
@@ -126,4 +137,4 @@ def api_info():
     })
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5050)
