@@ -1,0 +1,4 @@
+吾輩は猫である。名前はまだ無い。どこで生れたかとんと見当がつかぬ。
+春はあけぼの。やうやう白くなりゆく山ぎは、少しあかりて、紫だちたる雲の細くたなびきたる。
+This is a sample text. The text contains many words. Text analysis is useful.
+Python is a powerful programming language. It is widely used for web development, data analysis, and more.

@@ -1,8 +1,68 @@
+
+import csv
+import json
 import os
-from flask import Flask, render_template, request, jsonify
 import re
+from flask import Flask, render_template, request, jsonify, send_from_directory
 
 app = Flask(__name__)
+
+# 対訳コーパスCSVを2カラム（日本語・英語）で返すAPI
+@app.route('/corpus', methods=['GET'])
+def get_corpus():
+    """
+    対訳コーパスCSVを2カラム（日本語・英語）で返すAPI
+    """
+    filename = request.args.get('filename', 'sample_corpus.csv')
+    keyword = request.args.get('keyword', '').strip()
+    samples_dir = os.path.join(os.path.dirname(__file__), 'samples')
+    fpath = os.path.join(samples_dir, filename)
+    wordmap_path = os.path.join(samples_dir, 'wordmap.json')
+    if not os.path.exists(fpath):
+        return jsonify({'error': 'ファイルが存在しません'}), 404
+    # enWords取得
+    enWords = []
+    if keyword and os.path.exists(wordmap_path):
+        with open(wordmap_path, encoding='utf-8') as wf:
+            wordmap = json.load(wf)
+            enWords = wordmap.get(keyword, [])
+    context_size = 50  # 適度な文脈サイズ
+    corpus = []
+    with open(fpath, encoding='utf-8') as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if len(row) >= 2:
+                jp = row[0]
+                en = row[1]
+                if not keyword:
+                    # キーワード未指定なら全件返す
+                    corpus.append({
+                        'jp': jp,
+                        'en': en,
+                        'jp_kwic': [],
+                        'en_kwic': []
+                    })
+                else:
+                    # KWICで日本語・英語両方を判定
+                    jp_kwic = SimpleKWIC.kwic(jp, keyword, context_size)
+                    en_kwic_results = []
+                    for enWord in enWords:
+                        en_kwic_results.extend(SimpleKWIC.kwic(en, enWord, context_size))
+                    # どちらかのkwic結果が空でなければ返す
+                    if (jp_kwic and len(jp_kwic) > 0) or (en_kwic_results and len(en_kwic_results) > 0):
+                        corpus.append({
+                            'jp': jp,
+                            'en': en,
+                            'jp_kwic': jp_kwic,
+                            'en_kwic': en_kwic_results
+                        })
+    return jsonify({'corpus': corpus, 'filename': filename})
+
+# 静的ファイル（samples/wordmap.json等）を提供するルート
+@app.route('/samples/<path:filename>')
+def serve_sample_file(filename):
+    samples_dir = os.path.join(os.path.dirname(__file__), 'samples')
+    return send_from_directory(samples_dir, filename)
 
 class SimpleKWIC:
     """シンプルなKWIC (Key Word In Context) 実装"""
@@ -47,7 +107,7 @@ class SimpleKWIC:
 def get_samples():
     """サンプルテキストファイル一覧と内容を返すAPI"""
     samples_dir = os.path.join(os.path.dirname(__file__), 'samples')
-    sample_files = [f for f in os.listdir(samples_dir) if f.endswith('.txt')]
+    sample_files = [f for f in os.listdir(samples_dir) if f.endswith('.txt') or f.endswith('.csv')]
     samples = []
     for fname in sample_files:
         fpath = os.path.join(samples_dir, fname)

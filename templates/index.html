@@ -277,9 +277,60 @@
             </div>
             <div id="results"></div>
         </div>
+        <div class="results-section" id="corpusSection" style="display:none;">
+            <div class="results-header">
+                <h2>対訳コーパス</h2>
+            </div>
+            <table id="corpusTable" style="width:100%;border-collapse:collapse;">
+                <thead>
+                    <tr>
+                        <th style="width:50%;border-bottom:1px solid #eee;">日本語</th>
+                        <th style="width:50%;border-bottom:1px solid #eee;">英語</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
     </div>
 
 <script>
+    // 対訳コーパスと単語対応辞書を取得して2カラム表示
+    async function loadCorpusAndWordmap(keyword) {
+        const corpusSection = document.getElementById('corpusSection');
+        const corpusTable = document.getElementById('corpusTable').querySelector('tbody');
+        corpusTable.innerHTML = '';
+        let wordmap = {};
+        try {
+            const [corpusRes, wordmapRes] = await Promise.all([
+                fetch('/corpus'),
+                fetch('/samples/wordmap.json')
+            ]);
+            const corpusData = await corpusRes.json();
+            wordmap = await wordmapRes.json();
+            const enWords = wordmap[keyword] || [];
+            corpusData.corpus.forEach(row => {
+                // 英語列が空でない場合のみ表示
+                if (row.en && row.en.trim() !== '') {
+                    let jp = escapeHtml(row.jp);
+                    let en = escapeHtml(row.en);
+                    // 日本語側ハイライト
+                    if (keyword) {
+                        jp = jp.replace(new RegExp(keyword, 'g'), '<span class="keyword">'+keyword+'</span>');
+                    }
+                    // 英語側ハイライト（対応単語すべて）
+                    enWords.forEach(enWord => {
+                        en = en.replace(new RegExp(enWord, 'gi'), '<span class="keyword">'+enWord+'</span>');
+                    });
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td style="vertical-align:top;padding:8px;border-bottom:1px solid #eee;">${jp}</td><td style="vertical-align:top;padding:8px;border-bottom:1px solid #eee;">${en}</td>`;
+                    corpusTable.appendChild(tr);
+                }
+            });
+            corpusSection.style.display = 'block';
+        } catch (e) {
+            corpusSection.style.display = 'none';
+        }
+    }
     // サンプル一覧をAPIから取得してセレクトボックスに反映
     async function loadSamples() {
         const select = document.getElementById('sampleText');
@@ -305,7 +356,15 @@
         const select = e.target;
         const selected = select.options[select.selectedIndex];
         const preview = document.getElementById('samplePreview');
-        preview.textContent = selected.dataset.content || '';
+        // CSVの場合は行ごとに分割してプレビュー
+        if (selected.value.endsWith('.csv')) {
+            const lines = (selected.dataset.content || '').split('\n');
+            // 1行目（ヘッダ）を除外
+            const previewLines = lines.length > 1 ? lines.slice(1) : lines;
+            preview.innerHTML = previewLines.map(line => escapeHtml(line)).join('<br>');
+        } else {
+            preview.textContent = selected.dataset.content || '';
+        }
     });
 
     // 分析実行
@@ -327,44 +386,54 @@
         analyzeBtn.disabled = true;
         resultsEl.innerHTML = '';
         try {
-            const response = await fetch('/analyze', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ 
-                    text: text, 
-                    keyword: keyword,
-                    context_size: contextSize
-                })
-            });
-            const data = await response.json();
-            if (data.success) {
-                // 結果を表示
-                resultsCount.textContent = `"${data.keyword_searched}" に対して ${data.total_matches} 件の一致`;
-                if (data.results.length > 0) {
-                    data.results.forEach((result, index) => {
-                        const resultDiv = document.createElement('div');
-                        resultDiv.className = 'kwic-result';
-                        resultDiv.innerHTML = `
-                            <div class="kwic-line">
-                                <span class="left-context">${escapeHtml(result.left_context)}</span>
-                                <span class="keyword">${escapeHtml(result.keyword)}</span>
-                                <span class="right-context">${escapeHtml(result.right_context)}</span>
-                            </div>
-                            <div class="line-info">
-                                ${result.line_number ? `<span>行 ${result.line_number}</span>` : '<span></span>'}
-                                <span>マッチ ${index + 1}</span>
-                            </div>
-                        `;
-                        resultsEl.appendChild(resultDiv);
-                    });
-                } else {
-                    resultsEl.innerHTML = '<p>キーワードが見つかりませんでした。</p>';
-                }
-                resultsSection.style.display = 'block';
+            // サンプルがCSVの場合はコーパス表示のみ
+            if (selected.value.endsWith('.csv')) {
+                resultsSection.style.display = 'none';
+                resultsEl.innerHTML = '';
+                resultsCount.textContent = '';
+                await loadCorpusAndWordmap(keyword);
             } else {
-                throw new Error(data.error || '分析に失敗しました');
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        text: text, 
+                        keyword: keyword,
+                        context_size: contextSize
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    // 結果を表示
+                    resultsCount.textContent = `"${data.keyword_searched}" に対して ${data.total_matches} 件の一致`;
+                    if (data.results.length > 0) {
+                        data.results.forEach((result, index) => {
+                            const resultDiv = document.createElement('div');
+                            resultDiv.className = 'kwic-result';
+                            resultDiv.innerHTML = `
+                                <div class=\"kwic-line\">
+                                    <span class=\"left-context\">${escapeHtml(result.left_context)}</span>
+                                    <span class=\"keyword\">${escapeHtml(result.keyword)}</span>
+                                    <span class=\"right-context\">${escapeHtml(result.right_context)}</span>
+                                </div>
+                                <div class=\"line-info\">
+                                    ${result.line_number ? `<span>行 ${result.line_number}</span>` : '<span></span>'}
+                                    <span>マッチ ${index + 1}</span>
+                                </div>
+                            `;
+                            resultsEl.appendChild(resultDiv);
+                        });
+                    } else {
+                        resultsEl.innerHTML = '<p>キーワードが見つかりませんでした。</p>';
+                    }
+                    resultsSection.style.display = 'block';
+                    // テキスト分析時はコーパス表示は隠す
+                    document.getElementById('corpusSection').style.display = 'none';
+                } else {
+                    throw new Error(data.error || '分析に失敗しました');
+                }
             }
         } catch (error) {
             const errorDiv = document.createElement('div');
