@@ -302,7 +302,7 @@
         let wordmap = {};
         try {
             const [corpusRes, wordmapRes] = await Promise.all([
-                fetch('/corpus'),
+                fetch(`/corpus?filename=sample_corpus.csv&keyword=${encodeURIComponent(keyword)}`),
                 fetch('/samples/wordmap.json')
             ]);
             const corpusData = await corpusRes.json();

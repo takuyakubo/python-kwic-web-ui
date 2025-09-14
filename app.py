@@ -48,8 +48,10 @@ def get_corpus():
                     en_kwic_results = []
                     for enWord in enWords:
                         en_kwic_results.extend(SimpleKWIC.kwic(en, enWord, context_size))
-                    # どちらかのkwic結果が空でなければ返す
-                    if (jp_kwic and len(jp_kwic) > 0) or (en_kwic_results and len(en_kwic_results) > 0):
+
+                    # 日本語でキーワードが見つかった行のみを表示
+                    # （対訳コーパスでは、検索キーワードに対応する行のみを表示すべき）
+                    if jp_kwic and len(jp_kwic) > 0:
                         corpus.append({
                             'jp': jp,
                             'en': en,
